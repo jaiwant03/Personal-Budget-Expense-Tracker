@@ -1,45 +1,4 @@
 {
-  "transactions": [
-    {
-      "id": 1788881426221,
-      "description": "Monthly salary",
-      "amount": 30000,
-      "type": "income",
-      "category": "Salary",
-      "date": "2026-09-08"
-    },
-    {
-      "id": 1788881589943,
-      "description": "Kirana shopping",
-      "amount": 2000,
-      "type": "income",
-      "category": "Salary",
-      "date": "2026-09-08"
-    },
-    {
-      "id": 1788881603652,
-      "description": "Shopping",
-      "amount": 6000,
-      "type": "expense",
-      "category": "Food",
-      "date": "2026-09-08"
-    },
-    {
-      "id": 1788881648464,
-      "description": "Travelling",
-      "amount": 5000,
-      "type": "expense",
-      "category": "Travel",
-      "date": "2026-09-08"
-    },
-    {
-      "id": 1788883102096,
-      "description": "Dining Out",
-      "amount": 3000,
-      "type": "expense",
-      "category": "Food",
-      "date": "2026-09-08"
-    }
-  ],
+  "transactions": [],
   "monthlyBudget": 10000
 }

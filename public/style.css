@@ -116,8 +116,9 @@ button {
     transform: translateY(0);
 }
 
-.nav-actions {
+.navbar > .nav-actions {
     display: flex;
+    flex-direction: row;
     align-items: center;
     gap: 10px;
 }
@@ -918,6 +919,7 @@ tbody td:nth-child(3) {
     inset: 0;
     z-index: 1000;
     background: rgba(15, 23, 42, 0.45);
+    -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
     align-items: center;
     justify-content: center;
@@ -1249,6 +1251,10 @@ tbody td:nth-child(3) {
     border-radius: 10px;
     border: 1px dashed #e2e8f0;
     margin: 10px 0;
+}
+
+.chart-empty-state.is-hidden {
+    display: none;
 }
 
 /* =========================================================
