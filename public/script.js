@@ -23,6 +23,15 @@ const transactionModal =
 const budgetModal =
     document.getElementById("budgetModal");
 
+const chartsModal =
+    document.getElementById("chartsModal");
+
+const visualChartsBtn =
+    document.getElementById("visualChartsBtn");
+
+const closeChartsModal =
+    document.getElementById("closeChartsModal");
+
 const transactionForm =
     document.getElementById("transactionForm");
 
@@ -709,14 +718,16 @@ function renderTransactions() {
 
                         <button
                             class="action-btn edit-btn"
-                            onclick="editTransaction(${transaction.id})"
+                            title="Edit transaction"
+                            onclick="editTransaction('${transaction.id}')"
                         >
                             Edit
                         </button>
 
                         <button
                             class="action-btn delete-btn"
-                            onclick="deleteTransaction(${transaction.id})"
+                            title="Delete transaction"
+                            onclick="deleteTransaction('${transaction.id}')"
                         >
                             Delete
                         </button>
@@ -750,7 +761,7 @@ function editTransaction(id) {
     const transaction =
         transactions.find(
             transaction =>
-                transaction.id === id
+                String(transaction.id) === String(id)
         );
 
 
@@ -826,6 +837,9 @@ function editTransaction(id) {
 
 async function deleteTransaction(id) {
 
+    if (!id) return;
+
+
     const confirmDelete =
         confirm(
             "Are you sure you want to delete this transaction?"
@@ -851,23 +865,18 @@ async function deleteTransaction(id) {
         );
 
 
-        // Remove from frontend state
+        // Remove from frontend state (string-safe comparison)
 
         transactions =
             transactions.filter(
                 transaction =>
-                    transaction.id !== id
+                    String(transaction.id) !== String(id)
             );
 
 
         // Refresh UI
 
         renderTransactions();
-
-
-        alert(
-            "Transaction deleted successfully."
-        );
 
     } catch (error) {
 
@@ -877,6 +886,91 @@ async function deleteTransaction(id) {
         );
 
     }
+
+}
+
+
+// ==========================================
+// CLEAR ALL TRANSACTIONS
+// ==========================================
+
+const clearAllBtn =
+    document.getElementById("clearAllBtn");
+
+if (clearAllBtn) {
+
+    clearAllBtn.addEventListener(
+        "click",
+        async function () {
+
+            if (!transactions || transactions.length === 0) {
+
+                alert(
+                    "There are no transactions to clear."
+                );
+
+                return;
+
+            }
+
+
+            const confirmClear =
+                confirm(
+                    "Are you sure you want to clear all transactions? This action cannot be undone."
+                );
+
+
+            if (!confirmClear) {
+
+                return;
+
+            }
+
+
+            try {
+
+                try {
+
+                    // Primary: fast batch delete endpoint
+                    await apiRequest(
+                        "/api/transactions",
+                        {
+                            method: "DELETE"
+                        }
+                    );
+
+                } catch (batchError) {
+
+                    // Fallback: delete each transaction individually
+                    await Promise.all(
+                        transactions.map(t =>
+                            apiRequest(
+                                `/api/transactions/${t.id}`,
+                                {
+                                    method: "DELETE"
+                                }
+                            )
+                        )
+                    );
+
+                }
+
+
+                transactions = [];
+
+                renderTransactions();
+
+            } catch (error) {
+
+                alert(
+                    error.message ||
+                    "Unable to clear transactions."
+                );
+
+            }
+
+        }
+    );
 
 }
 
@@ -1133,6 +1227,11 @@ function updateSummary() {
         totalExpense
     );
 
+
+    // Update charts
+
+    renderVisualCharts();
+
 }
 
 
@@ -1142,64 +1241,114 @@ function updateSummary() {
 
 function updateBudget(totalExpense) {
 
-    const remaining =
-        monthlyBudget -
-        totalExpense;
+    const budgetAmountEl =
+        document.getElementById("budgetAmount");
+
+    const budgetSpentEl =
+        document.getElementById("budgetSpent");
+
+    const budgetRemainingEl =
+        document.getElementById("budgetRemaining");
+
+    const progressBar =
+        document.getElementById("budgetProgress");
+
+    const budgetPercentageEl =
+        document.getElementById("budgetPercentage");
 
 
-    let percentage = 0;
+    let usedSpan =
+        document.getElementById("budgetUsedText");
+
+    let remainingSpan =
+        document.getElementById("budgetRemainingText");
 
 
-    if (
-        monthlyBudget > 0
-    ) {
+    if (!usedSpan || !remainingSpan) {
 
-        percentage =
-            (
-                totalExpense /
-                monthlyBudget
-            ) * 100;
+        budgetPercentageEl.innerHTML = `
+            <span id="budgetUsedText">0.0% of budget used</span>
+            <span id="budgetRemainingText"></span>
+        `;
+
+        usedSpan =
+            document.getElementById("budgetUsedText");
+
+        remainingSpan =
+            document.getElementById("budgetRemainingText");
 
     }
 
 
     // ==================================
-    // DISPLAY BUDGET
+    // EDGE CASE 6: NO BUDGET SET (<= 0)
     // ==================================
 
-    document.getElementById(
-        "budgetAmount"
-    ).textContent =
-        formatCurrency(
-            monthlyBudget
-        );
+    if (!monthlyBudget || monthlyBudget <= 0) {
+
+        budgetAmountEl.textContent =
+            formatCurrency(0);
+
+        budgetSpentEl.textContent =
+            formatCurrency(totalExpense);
+
+        budgetRemainingEl.textContent =
+            formatCurrency(0);
+
+        budgetRemainingEl.style.color = "";
 
 
-    document.getElementById(
-        "budgetSpent"
-    ).textContent =
-        formatCurrency(
-            totalExpense
-        );
+        progressBar.style.width = "0%";
+
+        progressBar.style.background = "#00b865";
 
 
-    document.getElementById(
-        "budgetRemaining"
-    ).textContent =
-        formatCurrency(
-            remaining
-        );
+        usedSpan.textContent =
+            "0.0% of budget used";
+
+        remainingSpan.textContent = "";
+
+        remainingSpan.style.color = "";
+
+        remainingSpan.style.fontWeight = "";
+
+        return;
+
+    }
 
 
     // ==================================
-    // PROGRESS BAR
+    // BUDGET CALCULATIONS
     // ==================================
 
-    const progressBar =
-        document.getElementById(
-            "budgetProgress"
-        );
+    const remaining =
+        monthlyBudget -
+        totalExpense;
 
+
+    const percentage =
+        (totalExpense /
+            monthlyBudget) * 100;
+
+
+    // ==================================
+    // DISPLAY VALUES
+    // ==================================
+
+    budgetAmountEl.textContent =
+        formatCurrency(monthlyBudget);
+
+    budgetSpentEl.textContent =
+        formatCurrency(totalExpense);
+
+    budgetRemainingEl.textContent =
+        formatCurrency(remaining);
+
+
+    // ==================================
+    // PROGRESS BAR WIDTH
+    // ==================================
+    // Visual progress bar capped at 100%
 
     progressBar.style.width =
         Math.min(
@@ -1208,38 +1357,79 @@ function updateBudget(totalExpense) {
         ) + "%";
 
 
-    document.getElementById(
-        "budgetPercentage"
-    ).textContent =
+    // Text displays actual usage percentage
+
+    usedSpan.textContent =
         `${percentage.toFixed(1)}% of budget used`;
 
 
     // ==================================
-    // PROGRESS COLOR
+    // BUDGET STATUS STATES
     // ==================================
 
-    if (
-        percentage >= 100
-    ) {
+    if (totalExpense > monthlyBudget) {
 
-        progressBar.style.background =
-            "#dc2626";
+        // State 3: Exceeded
+        const exceededAmount =
+            totalExpense - monthlyBudget;
+
+        remainingSpan.textContent =
+            `Budget exceeded by ${formatCurrency(exceededAmount)}`;
+
+        remainingSpan.style.color = "#dc2626";
+
+        remainingSpan.style.fontWeight = "600";
+
+
+        progressBar.style.background = "#dc2626";
+
+        budgetRemainingEl.style.color = "#dc2626";
 
     }
 
-    else if (
-        percentage >= 75
-    ) {
+    else if (totalExpense === monthlyBudget) {
 
-        progressBar.style.background =
-            "#f59e0b";
+        // State 2: Exactly 100%
+        remainingSpan.textContent =
+            "Budget fully used";
+
+        remainingSpan.style.color = "#4b5563";
+
+        remainingSpan.style.fontWeight = "500";
+
+
+        progressBar.style.background = "#dc2626";
+
+        budgetRemainingEl.style.color = "";
 
     }
 
     else {
 
-        progressBar.style.background =
-            "#4f46e5";
+        // State 1: Spent < Budget
+        const remainingPercent =
+            ((monthlyBudget - totalExpense) /
+                monthlyBudget) * 100;
+
+        remainingSpan.textContent =
+            `${remainingPercent.toFixed(1)}% remaining`;
+
+        remainingSpan.style.color = "#4b5563";
+
+        remainingSpan.style.fontWeight = "500";
+
+
+        if (percentage >= 75) {
+
+            progressBar.style.background = "#f59e0b";
+
+        } else {
+
+            progressBar.style.background = "#00b865";
+
+        }
+
+        budgetRemainingEl.style.color = "";
 
     }
 
@@ -1311,6 +1501,46 @@ window.addEventListener(
 
         }
 
+
+        if (
+            event.target ===
+            chartsModal
+        ) {
+
+            chartsModal.classList.remove(
+                "show"
+            );
+
+        }
+
+    }
+);
+
+
+// ==========================================
+// CLOSE MODALS WITH ESCAPE KEY
+// ==========================================
+
+window.addEventListener(
+    "keydown",
+    function (event) {
+
+        if (event.key === "Escape") {
+
+            if (transactionModal) {
+                transactionModal.classList.remove("show");
+            }
+
+            if (budgetModal) {
+                budgetModal.classList.remove("show");
+            }
+
+            if (chartsModal) {
+                chartsModal.classList.remove("show");
+            }
+
+        }
+
     }
 );
 
@@ -1321,6 +1551,8 @@ window.addEventListener(
 
 function formatCurrency(amount) {
 
+    const numericAmount = Number(amount) || 0;
+
     return new Intl.NumberFormat(
         "en-IN",
         {
@@ -1329,10 +1561,13 @@ function formatCurrency(amount) {
 
             currency: "INR",
 
+            minimumFractionDigits:
+                numericAmount % 1 === 0 ? 0 : 2,
+
             maximumFractionDigits: 2
 
         }
-    ).format(amount);
+    ).format(numericAmount);
 
 }
 
@@ -1376,6 +1611,640 @@ function escapeHTML(value) {
 
 
     return div.innerHTML;
+
+}
+
+
+// ==========================================
+// VISUAL CHARTS
+// ==========================================
+
+let expenseBreakdownChart = null;
+let incomeVsExpenseChart = null;
+let monthlySpendingTrendChart = null;
+
+if (visualChartsBtn) {
+
+    visualChartsBtn.addEventListener(
+        "click",
+        function () {
+
+            if (chartsModal) {
+
+                chartsModal.classList.add("show");
+
+                renderVisualCharts();
+
+            }
+
+        }
+    );
+
+}
+
+if (closeChartsModal) {
+
+    closeChartsModal.addEventListener(
+        "click",
+        function () {
+
+            if (chartsModal) {
+
+                chartsModal.classList.remove("show");
+
+            }
+
+        }
+    );
+
+}
+
+const categoryColors = {
+    Salary: "#00b865",
+    Food: "#0284c7",
+    Travel: "#0f766e",
+    Shopping: "#f59e0b",
+    Education: "#10b981",
+    Bills: "#ef4444",
+    Entertainment: "#6366f1",
+    Other: "#64748b"
+};
+
+const fallbackColors = [
+    "#00b865",
+    "#0284c7",
+    "#0f766e",
+    "#f59e0b",
+    "#10b981",
+    "#ef4444",
+    "#6366f1",
+    "#8b5cf6",
+    "#14b8a6",
+    "#f97316"
+];
+
+function getCategoryColor(category, index) {
+
+    return (
+        categoryColors[category] ||
+        fallbackColors[index % fallbackColors.length]
+    );
+
+}
+
+function renderVisualCharts() {
+
+    if (typeof Chart === "undefined") {
+
+        console.warn("Chart.js is not loaded.");
+
+        return;
+
+    }
+
+    const selectedMonth =
+        monthFilter.value;
+
+    let monthLabel = "Selected Month";
+
+    if (selectedMonth) {
+
+        const [year, month] =
+            selectedMonth.split("-");
+
+        const dateObj =
+            new Date(
+                Number(year),
+                Number(month) - 1,
+                1
+            );
+
+        monthLabel =
+            dateObj.toLocaleDateString(
+                "en-IN",
+                {
+                    month: "short",
+                    year: "numeric"
+                }
+            );
+
+    }
+
+    const monthSubtitle =
+        document.getElementById("chartsMonthSubtitle");
+
+    if (monthSubtitle) {
+
+        monthSubtitle.textContent =
+            `Financial analytics for ${monthLabel}`;
+
+    }
+
+    const expenseBadge =
+        document.getElementById("expenseMonthBadge");
+
+    if (expenseBadge) {
+
+        expenseBadge.textContent =
+            monthLabel;
+
+    }
+
+    const incomeExpenseBadge =
+        document.getElementById("incomeExpenseMonthBadge");
+
+    if (incomeExpenseBadge) {
+
+        incomeExpenseBadge.textContent =
+            monthLabel;
+
+    }
+
+    // 1. Expense Breakdown (Donut)
+    renderExpenseBreakdown(selectedMonth);
+
+    // 2. Income vs Expense (Bar)
+    renderIncomeVsExpense(selectedMonth);
+
+    // 3. Monthly Spending Trend (Line)
+    renderMonthlySpendingTrend();
+
+}
+
+function renderExpenseBreakdown(selectedMonth) {
+
+    const canvas =
+        document.getElementById("expenseBreakdownChart");
+
+    const emptyState =
+        document.getElementById("expenseBreakdownEmpty");
+
+    const detailsWrap =
+        document.getElementById("expenseBreakdownDetails");
+
+    const categoryList =
+        document.getElementById("expenseCategoryList");
+
+    const totalEl =
+        document.getElementById("expenseBreakdownTotal");
+
+    if (!canvas) return;
+
+    // Filter ONLY expenses for the selected month
+    const monthlyExpenses =
+        transactions.filter(
+            t => {
+                const isExpense =
+                    t.type === "expense";
+
+                const matchesMonth =
+                    !selectedMonth ||
+                    (t.date &&
+                        String(t.date).startsWith(selectedMonth));
+
+                return isExpense && matchesMonth;
+            }
+        );
+
+    // Group expenses by category
+    const categoryTotals = {};
+    let totalExpense = 0;
+
+    monthlyExpenses.forEach(
+        t => {
+            const cat =
+                t.category ? t.category.trim() : "Other";
+
+            const amt =
+                Number(t.amount) || 0;
+
+            categoryTotals[cat] =
+                (categoryTotals[cat] || 0) + amt;
+
+            totalExpense += amt;
+        }
+    );
+
+    const categories =
+        Object.keys(categoryTotals);
+
+    if (expenseBreakdownChart) {
+
+        expenseBreakdownChart.destroy();
+
+        expenseBreakdownChart = null;
+
+    }
+
+    if (categories.length === 0 || totalExpense === 0) {
+
+        canvas.style.display = "none";
+
+        if (emptyState) emptyState.style.display = "block";
+
+        if (detailsWrap) detailsWrap.style.display = "none";
+
+        return;
+
+    }
+
+    canvas.style.display = "block";
+
+    if (emptyState) emptyState.style.display = "none";
+
+    if (detailsWrap) detailsWrap.style.display = "block";
+
+    const amounts =
+        categories.map(cat => categoryTotals[cat]);
+
+    const bgColors =
+        categories.map((cat, i) => getCategoryColor(cat, i));
+
+    if (categoryList) {
+
+        categoryList.innerHTML =
+            categories
+                .map((cat, i) => {
+                    const amt = categoryTotals[cat];
+                    const pct =
+                        totalExpense > 0
+                            ? ((amt / totalExpense) * 100).toFixed(0)
+                            : 0;
+
+                    return `
+                        <div class="category-breakdown-item">
+                            <span class="category-dot" style="background-color: ${bgColors[i]}"></span>
+                            <span>${escapeHTML(cat)}: <strong>${formatCurrency(amt)}</strong> (${pct}%)</span>
+                        </div>
+                    `;
+                })
+                .join("");
+
+    }
+
+    if (totalEl) {
+
+        totalEl.textContent =
+            formatCurrency(totalExpense);
+
+    }
+
+    const ctx = canvas.getContext("2d");
+
+    expenseBreakdownChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+            labels: categories,
+            datasets: [
+                {
+                    data: amounts,
+                    backgroundColor: bgColors,
+                    borderColor: "#ffffff",
+                    borderWidth: 2,
+                    hoverOffset: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: "65%",
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            const val = context.raw || 0;
+                            const pct =
+                                totalExpense > 0
+                                    ? ((val / totalExpense) * 100).toFixed(1)
+                                    : 0;
+                            return ` ${context.label}: ${formatCurrency(val)} (${pct}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+}
+
+function renderIncomeVsExpense(selectedMonth) {
+
+    const canvas =
+        document.getElementById("incomeVsExpenseChart");
+
+    const emptyState =
+        document.getElementById("incomeVsExpenseEmpty");
+
+    const detailsWrap =
+        document.getElementById("incomeVsExpenseDetails");
+
+    const incomeTotalEl =
+        document.getElementById("chartIncomeTotal");
+
+    const expenseTotalEl =
+        document.getElementById("chartExpenseTotal");
+
+    const netTotalEl =
+        document.getElementById("chartNetTotal");
+
+    if (!canvas) return;
+
+    const monthlyTransactions =
+        transactions.filter(
+            t => {
+                return (
+                    !selectedMonth ||
+                    (t.date &&
+                        String(t.date).startsWith(selectedMonth))
+                );
+            }
+        );
+
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    monthlyTransactions.forEach(
+        t => {
+            const amt = Number(t.amount) || 0;
+            if (t.type === "income") totalIncome += amt;
+            else if (t.type === "expense") totalExpense += amt;
+        }
+    );
+
+    if (incomeVsExpenseChart) {
+
+        incomeVsExpenseChart.destroy();
+
+        incomeVsExpenseChart = null;
+
+    }
+
+    if (
+        monthlyTransactions.length === 0 ||
+        (totalIncome === 0 && totalExpense === 0)
+    ) {
+
+        canvas.style.display = "none";
+
+        if (emptyState) emptyState.style.display = "block";
+
+        if (detailsWrap) detailsWrap.style.display = "none";
+
+        return;
+
+    }
+
+    canvas.style.display = "block";
+
+    if (emptyState) emptyState.style.display = "none";
+
+    if (detailsWrap) detailsWrap.style.display = "block";
+
+    if (incomeTotalEl) {
+        incomeTotalEl.textContent =
+            formatCurrency(totalIncome);
+    }
+
+    if (expenseTotalEl) {
+        expenseTotalEl.textContent =
+            formatCurrency(totalExpense);
+    }
+
+    if (netTotalEl) {
+
+        const net =
+            totalIncome - totalExpense;
+
+        netTotalEl.textContent =
+            formatCurrency(net);
+
+        netTotalEl.style.color =
+            net >= 0 ? "#059669" : "#dc2626";
+
+    }
+
+    const ctx = canvas.getContext("2d");
+
+    incomeVsExpenseChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: ["Income", "Expense"],
+            datasets: [
+                {
+                    data: [totalIncome, totalExpense],
+                    backgroundColor: ["#00b865", "#dc2626"],
+                    hoverBackgroundColor: ["#049b55", "#b91c1c"],
+                    borderRadius: 8,
+                    barThickness: 45
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            return ` ${context.label}: ${formatCurrency(context.raw)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function (value) {
+                            return formatCurrency(value);
+                        },
+                        font: {
+                            family: "Inter",
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: "#f1f5f9"
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: {
+                            family: "Inter",
+                            size: 12,
+                            weight: "600"
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+}
+
+function renderMonthlySpendingTrend() {
+
+    const canvas =
+        document.getElementById("monthlySpendingTrendChart");
+
+    const emptyState =
+        document.getElementById("monthlySpendingTrendEmpty");
+
+    if (!canvas) return;
+
+    // Filter all expense transactions across all dates
+    const allExpenses =
+        transactions.filter(
+            t => t.type === "expense" && t.date
+        );
+
+    const monthlySpending = {};
+
+    allExpenses.forEach(
+        t => {
+            const monthKey =
+                String(t.date).slice(0, 7);
+
+            if (/^\d{4}-\d{2}$/.test(monthKey)) {
+
+                const amt = Number(t.amount) || 0;
+
+                monthlySpending[monthKey] =
+                    (monthlySpending[monthKey] || 0) + amt;
+
+            }
+        }
+    );
+
+    const sortedMonthKeys =
+        Object.keys(monthlySpending).sort();
+
+    if (monthlySpendingTrendChart) {
+
+        monthlySpendingTrendChart.destroy();
+
+        monthlySpendingTrendChart = null;
+
+    }
+
+    if (sortedMonthKeys.length === 0) {
+
+        canvas.style.display = "none";
+
+        if (emptyState) emptyState.style.display = "block";
+
+        return;
+
+    }
+
+    canvas.style.display = "block";
+
+    if (emptyState) emptyState.style.display = "none";
+
+    const labels =
+        sortedMonthKeys.map(key => {
+            const [year, month] =
+                key.split("-");
+
+            const dateObj =
+                new Date(
+                    Number(year),
+                    Number(month) - 1,
+                    1
+                );
+
+            return dateObj.toLocaleDateString(
+                "en-IN",
+                {
+                    month: "short",
+                    year: "numeric"
+                }
+            );
+        });
+
+    const values =
+        sortedMonthKeys.map(
+            key => monthlySpending[key]
+        );
+
+    const ctx = canvas.getContext("2d");
+
+    monthlySpendingTrendChart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: "Monthly Spending",
+                    data: values,
+                    borderColor: "#0f766e",
+                    backgroundColor: "rgba(0, 184, 101, 0.12)",
+                    fill: true,
+                    tension: 0.35,
+                    pointBackgroundColor: "#00b865",
+                    pointBorderColor: "#ffffff",
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            return ` Spending: ${formatCurrency(context.raw)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function (value) {
+                            return formatCurrency(value);
+                        },
+                        font: {
+                            family: "Inter",
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: "#f1f5f9"
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        font: {
+                            family: "Inter",
+                            size: 12,
+                            weight: "500"
+                        }
+                    }
+                }
+            }
+        }
+    });
 
 }
 

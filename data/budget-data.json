@@ -1,37 +1,45 @@
 {
   "transactions": [
     {
-      "id": 1788842217386,
-      "description": "Grocery shop",
+      "id": 1788881426221,
+      "description": "Monthly salary",
+      "amount": 30000,
+      "type": "income",
+      "category": "Salary",
+      "date": "2026-09-08"
+    },
+    {
+      "id": 1788881589943,
+      "description": "Kirana shopping",
       "amount": 2000,
       "type": "income",
-      "category": "Food",
+      "category": "Salary",
       "date": "2026-09-08"
     },
     {
-      "id": 1788846191532,
-      "description": "Kirana shop",
-      "amount": 50,
-      "type": "income",
-      "category": "Shopping",
-      "date": "2026-09-08"
-    },
-    {
-      "id": 1788846234017,
-      "description": "Shop",
-      "amount": 5000,
-      "type": "income",
-      "category": "Food",
-      "date": "2026-09-08"
-    },
-    {
-      "id": 1788848067266,
-      "description": "Shopping mall",
-      "amount": 500,
+      "id": 1788881603652,
+      "description": "Shopping",
+      "amount": 6000,
       "type": "expense",
-      "category": "Shopping",
+      "category": "Food",
+      "date": "2026-09-08"
+    },
+    {
+      "id": 1788881648464,
+      "description": "Travelling",
+      "amount": 5000,
+      "type": "expense",
+      "category": "Travel",
+      "date": "2026-09-08"
+    },
+    {
+      "id": 1788883102096,
+      "description": "Dining Out",
+      "amount": 3000,
+      "type": "expense",
+      "category": "Food",
       "date": "2026-09-08"
     }
   ],
-  "monthlyBudget": 5000
+  "monthlyBudget": 10000
 }

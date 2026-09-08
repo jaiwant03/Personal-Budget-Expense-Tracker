@@ -528,6 +528,64 @@ app.put(
 
 
 // ==========================================
+// DELETE ALL TRANSACTIONS (CLEAR ALL)
+// ==========================================
+
+app.delete(
+    "/api/transactions",
+    function (req, res) {
+
+        try {
+
+            const data = readData();
+
+            data.transactions = [];
+
+            const saved =
+                writeData(data);
+
+            if (!saved) {
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        "Failed to clear transactions."
+
+                });
+
+            }
+
+            res.status(200).json({
+
+                success: true,
+
+                message:
+                    "All transactions cleared successfully."
+
+            });
+
+        } catch (error) {
+
+            console.error(error);
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Server error while clearing transactions."
+
+            });
+
+        }
+
+    }
+);
+
+
+// ==========================================
 // DELETE TRANSACTION
 // ==========================================
 
@@ -537,8 +595,8 @@ app.delete(
 
         try {
 
-            const id =
-                Number(req.params.id);
+            const targetId =
+                String(req.params.id);
 
 
             const data = readData();
@@ -547,7 +605,7 @@ app.delete(
             const index =
                 data.transactions.findIndex(
                     transaction =>
-                        transaction.id === id
+                        String(transaction.id) === targetId
                 );
 
 

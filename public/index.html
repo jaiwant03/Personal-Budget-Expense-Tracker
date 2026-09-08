@@ -7,6 +7,7 @@
     <title>Personal Budget & Expense Tracker</title>
 
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -19,7 +20,10 @@
         <p>Personal Finance Tracker</p>
     </div>
 
-    <button id="addTransactionBtn">+ Add Transaction</button>
+    <div class="nav-actions">
+        <button id="visualChartsBtn" class="charts-nav-btn">Visual Charts</button>
+        <button id="addTransactionBtn">+ Add Transaction</button>
+    </div>
 </nav>
 
 
@@ -108,7 +112,8 @@
         </div>
 
         <p id="budgetPercentage" class="budget-percentage">
-            0% of budget used
+            <span id="budgetUsedText">0.0% of budget used</span>
+            <span id="budgetRemainingText"></span>
         </p>
 
     </section>
@@ -141,6 +146,8 @@
                 <option value="income">Income</option>
                 <option value="expense">Expense</option>
             </select>
+
+            <button id="clearAllBtn" class="clear-btn">Clear All</button>
 
         </div>
 
@@ -311,6 +318,105 @@
             </button>
 
         </form>
+
+    </div>
+
+</div>
+
+
+<!-- ================= VISUAL CHARTS MODAL ================= -->
+
+<div class="modal" id="chartsModal">
+
+    <div class="modal-content charts-modal-content">
+
+        <div class="modal-header">
+            <div class="charts-title-group">
+                <h2 id="chartsModalTitle">Visual Charts</h2>
+                <p id="chartsMonthSubtitle">Financial analytics overview</p>
+            </div>
+            <button class="close-btn" id="closeChartsModal">&times;</button>
+        </div>
+
+        <div class="charts-grid">
+
+            <!-- CHART 1: EXPENSE BREAKDOWN -->
+            <div class="chart-card">
+                <div class="chart-card-header">
+                    <h3>Expense Breakdown</h3>
+                    <span class="chart-card-badge" id="expenseMonthBadge">Selected Month</span>
+                </div>
+
+                <div class="chart-canvas-wrap">
+                    <canvas id="expenseBreakdownChart"></canvas>
+                </div>
+
+                <div id="expenseBreakdownEmpty" class="chart-empty-state" style="display: none;">
+                    <p>No expense data available for this month.</p>
+                </div>
+
+                <div id="expenseBreakdownDetails" class="chart-details">
+                    <div id="expenseCategoryList" class="category-breakdown-list"></div>
+                    <div class="chart-total-row">
+                        <span>Total Expenses:</span>
+                        <strong id="expenseBreakdownTotal">₹0</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHART 2: INCOME VS EXPENSE -->
+            <div class="chart-card">
+                <div class="chart-card-header">
+                    <h3>Income vs Expense</h3>
+                    <span class="chart-card-badge" id="incomeExpenseMonthBadge">Selected Month</span>
+                </div>
+
+                <div class="chart-canvas-wrap">
+                    <canvas id="incomeVsExpenseChart"></canvas>
+                </div>
+
+                <div id="incomeVsExpenseEmpty" class="chart-empty-state" style="display: none;">
+                    <p>No transaction data available for this month.</p>
+                </div>
+
+                <div id="incomeVsExpenseDetails" class="chart-details">
+                    <div class="comparison-summary">
+                        <div class="comparison-pill comparison-income">
+                            <span>Income</span>
+                            <strong id="chartIncomeTotal">₹0</strong>
+                        </div>
+                        <div class="comparison-pill comparison-expense">
+                            <span>Expense</span>
+                            <strong id="chartExpenseTotal">₹0</strong>
+                        </div>
+                        <div class="comparison-pill comparison-net">
+                            <span>Net Balance</span>
+                            <strong id="chartNetTotal">₹0</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHART 3: MONTHLY SPENDING TREND -->
+            <div class="chart-card chart-trend-card">
+                <div class="chart-card-header">
+                    <div>
+                        <h3>Monthly Spending Trend</h3>
+                        <p class="chart-card-subtext">Historical expense totals over time</p>
+                    </div>
+                    <span class="chart-card-badge">All Months</span>
+                </div>
+
+                <div class="chart-canvas-wrap trend-canvas-wrap">
+                    <canvas id="monthlySpendingTrendChart"></canvas>
+                </div>
+
+                <div id="monthlySpendingTrendEmpty" class="chart-empty-state" style="display: none;">
+                    <p>Insufficient data to display spending trend. Add expenses across months to visualize.</p>
+                </div>
+            </div>
+
+        </div>
 
     </div>
 
