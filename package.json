@@ -1,0 +1,24 @@
+{
+  "name": "personal-budget-expense-tracker",
+  "version": "1.0.0",
+  "description": "Personal Budget and Expense Tracker using Node.js and Express",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaiwant03/Personal-Budget-Expense-Tracker.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jaiwant03/Personal-Budget-Expense-Tracker/issues"
+  },
+  "homepage": "https://github.com/jaiwant03/Personal-Budget-Expense-Tracker#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

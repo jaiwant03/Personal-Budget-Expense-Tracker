@@ -1,0 +1,21 @@
+{
+  "transactions": [
+    {
+      "id": 1788842217386,
+      "description": "Grocery shop",
+      "amount": 2000,
+      "type": "income",
+      "category": "Food",
+      "date": "2026-09-08"
+    },
+    {
+      "id": 1788842306351,
+      "description": "Shoppinng mall",
+      "amount": 500,
+      "type": "expense",
+      "category": "Shopping",
+      "date": "2026-09-08"
+    }
+  ],
+  "monthlyBudget": 1000
+}
