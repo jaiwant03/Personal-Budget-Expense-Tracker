@@ -11,6 +11,11 @@ lerna-debug.log*
 .env
 .env.*
 !.env.example
+*.local
+
+# Build outputs
+dist/
+build/
 
 # Runtime & Logs
 logs/
