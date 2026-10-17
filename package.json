@@ -2,7 +2,7 @@
   "name": "personal-budget-expense-tracker",
   "version": "1.0.0",
   "description": "Personal Budget and Expense Tracker using Node.js and Express",
-  "main": "server.js",
+  "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
     "server": "npm run start --prefix server",
