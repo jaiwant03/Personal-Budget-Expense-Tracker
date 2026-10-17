@@ -22,14 +22,11 @@ const MONGODB_URI =
 app.use(cors());
 app.use(express.json());
 
-// Serve static React build if it exists, or fallback to public folder
+// Serve static React build if it exists
 const clientDistPath = path.join(__dirname, "..", "client", "dist");
-const publicPath = path.join(__dirname, "..", "public");
 
 if (fs.existsSync(clientDistPath)) {
     app.use(express.static(clientDistPath));
-} else if (fs.existsSync(publicPath)) {
-    app.use(express.static(publicPath));
 }
 
 // ==========================================
