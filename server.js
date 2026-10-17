@@ -387,7 +387,7 @@ app.use("/api", function (req, res) {
 // CLIENT FALLBACK ROUTE
 // ==========================================
 
-app.get("*", function (req, res) {
+app.use(function (req, res) {
     if (fs.existsSync(path.join(clientDistPath, "index.html"))) {
         res.sendFile(path.join(clientDistPath, "index.html"));
     } else if (fs.existsSync(path.join(publicPath, "index.html"))) {
