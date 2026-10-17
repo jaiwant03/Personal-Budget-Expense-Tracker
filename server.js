@@ -67,7 +67,7 @@ async function autoMigrateFromJson() {
                     await Budget.findOneAndUpdate(
                         { key: "current_budget" },
                         { monthlyBudget: jsonData.monthlyBudget },
-                        { upsert: true, new: true }
+                        { upsert: true, returnDocument: "after" }
                     );
                     console.log(
                         `[Migration] Imported monthly budget (₹${jsonData.monthlyBudget}) into MongoDB.`
@@ -234,7 +234,7 @@ app.put("/api/transactions/:id", async function (req, res) {
                 category: transactionData.category.trim(),
                 date: transactionData.date
             },
-            { new: true }
+            { returnDocument: "after" }
         );
 
         if (!updatedTransaction) {
@@ -355,7 +355,7 @@ app.post("/api/budget", async function (req, res) {
         const budgetDoc = await Budget.findOneAndUpdate(
             { key: "current_budget" },
             { monthlyBudget: amount },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: "after" }
         );
 
         res.status(200).json({
