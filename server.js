@@ -1,890 +1,426 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 
-const app = express();
+const Transaction = require("./models/Transaction");
+const Budget = require("./models/Budget");
 
-const PORT = 3000;
+const app = express();
+const PORT = process.env.PORT || 5000;
+const MONGODB_URI =
+    process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/budgetflow";
 
 // ==========================================
 // MIDDLEWARE
 // ==========================================
 
 app.use(cors());
-
 app.use(express.json());
 
-app.use(express.static(path.join(__dirname, "public")));
+// Serve static React build if it exists, or fallback to public folder
+const clientDistPath = path.join(__dirname, "client", "dist");
+const publicPath = path.join(__dirname, "public");
 
-
-// ==========================================
-// DATABASE FILE
-// ==========================================
-
-const dataDirectory = path.join(__dirname, "data");
-
-const dataFile = path.join(
-    dataDirectory,
-    "budget-data.json"
-);
-
-
-// Create data folder if missing
-if (!fs.existsSync(dataDirectory)) {
-
-    fs.mkdirSync(
-        dataDirectory,
-        { recursive: true }
-    );
-
+if (fs.existsSync(clientDistPath)) {
+    app.use(express.static(clientDistPath));
+} else if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath));
 }
 
-
-// Create JSON database if missing
-if (!fs.existsSync(dataFile)) {
-
-    fs.writeFileSync(
-        dataFile,
-        JSON.stringify(
-            {
-                transactions: [],
-                monthlyBudget: 0
-            },
-            null,
-            2
-        )
-    );
-
-}
-
-
 // ==========================================
-// READ DATABASE
+// MONGODB CONNECTION & AUTOMATIC MIGRATION
 // ==========================================
 
-function readData() {
-
+async function connectDB() {
     try {
+        await mongoose.connect(MONGODB_URI);
+        console.log("Connected to MongoDB successfully at:", MONGODB_URI);
 
-        const fileContent =
-            fs.readFileSync(
-                dataFile,
-                "utf8"
-            );
-
-        return JSON.parse(fileContent);
-
+        // Auto-migration from existing budget-data.json if MongoDB is empty
+        await autoMigrateFromJson();
     } catch (error) {
-
-        console.error(
-            "Database read error:",
-            error
-        );
-
-        return {
-            transactions: [],
-            monthlyBudget: 0
-        };
-
+        console.error("MongoDB connection error:", error.message);
+        console.log("Please ensure MongoDB is running on your machine.");
     }
-
 }
 
-
-// ==========================================
-// WRITE DATABASE
-// ==========================================
-
-function writeData(data) {
-
+async function autoMigrateFromJson() {
     try {
+        const count = await Transaction.countDocuments();
+        if (count === 0) {
+            const dataFile = path.join(__dirname, "data", "budget-data.json");
+            if (fs.existsSync(dataFile)) {
+                const raw = fs.readFileSync(dataFile, "utf8");
+                const jsonData = JSON.parse(raw);
 
-        fs.writeFileSync(
-            dataFile,
-            JSON.stringify(
-                data,
-                null,
-                2
-            )
-        );
+                if (Array.isArray(jsonData.transactions) && jsonData.transactions.length > 0) {
+                    await Transaction.insertMany(jsonData.transactions);
+                    console.log(
+                        `[Migration] Successfully imported ${jsonData.transactions.length} transactions from budget-data.json into MongoDB.`
+                    );
+                }
 
-        return true;
-
-    } catch (error) {
-
-        console.error(
-            "Database write error:",
-            error
-        );
-
-        return false;
-
+                if (typeof jsonData.monthlyBudget === "number" && jsonData.monthlyBudget > 0) {
+                    await Budget.findOneAndUpdate(
+                        { key: "current_budget" },
+                        { monthlyBudget: jsonData.monthlyBudget },
+                        { upsert: true, new: true }
+                    );
+                    console.log(
+                        `[Migration] Imported monthly budget (₹${jsonData.monthlyBudget}) into MongoDB.`
+                    );
+                }
+            }
+        }
+    } catch (err) {
+        console.warn("[Migration Notice] Could not auto-migrate from JSON:", err.message);
     }
-
 }
 
+connectDB();
 
 // ==========================================
-// TRANSACTION VALIDATION
+// TRANSACTION VALIDATION HELPER
 // ==========================================
 
 function validateTransaction(data) {
-
-    if (
-        typeof data.description !== "string" ||
-        data.description.trim() === ""
-    ) {
-
+    if (typeof data.description !== "string" || data.description.trim() === "") {
         return "Description is required.";
-
     }
-
 
     if (
         typeof data.amount !== "number" ||
         !Number.isFinite(data.amount) ||
         data.amount <= 0
     ) {
-
         return "Amount must be greater than zero.";
-
     }
 
-
-    if (
-        data.type !== "income" &&
-        data.type !== "expense"
-    ) {
-
+    if (data.type !== "income" && data.type !== "expense") {
         return "Transaction type must be income or expense.";
-
     }
 
-
-    if (
-        typeof data.category !== "string" ||
-        data.category.trim() === ""
-    ) {
-
+    if (typeof data.category !== "string" || data.category.trim() === "") {
         return "Category is required.";
-
     }
-
 
     if (
         typeof data.date !== "string" ||
         !/^\d{4}-\d{2}-\d{2}$/.test(data.date)
     ) {
-
         return "Valid date is required.";
-
     }
 
-
     return null;
-
 }
-
-
-// ==========================================
-// HOME PAGE
-// ==========================================
-
-app.get("/", function (req, res) {
-
-    res.sendFile(
-        path.join(
-            __dirname,
-            "public",
-            "index.html"
-        )
-    );
-
-});
-
 
 // ==========================================
 // GET TRANSACTIONS
 // ==========================================
 
-app.get(
-    "/api/transactions",
-    function (req, res) {
+app.get("/api/transactions", async function (req, res) {
+    try {
+        const transactions = await Transaction.find().sort({ date: -1, createdAt: -1 });
 
-        try {
-
-            const data = readData();
-
-            res.status(200).json({
-
-                success: true,
-
-                transactions:
-                    data.transactions
-
-            });
-
-        } catch (error) {
-
-            console.error(error);
-
-            res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Unable to retrieve transactions."
-
-            });
-
-        }
-
+        res.status(200).json({
+            success: true,
+            transactions: transactions.map(t => ({
+                id: t.id,
+                description: t.description,
+                amount: t.amount,
+                type: t.type,
+                category: t.category,
+                date: t.date
+            }))
+        });
+    } catch (error) {
+        console.error("Error retrieving transactions:", error);
+        res.status(500).json({
+            success: false,
+            message: "Unable to retrieve transactions from database."
+        });
     }
-);
-
+});
 
 // ==========================================
 // ADD TRANSACTION
 // ==========================================
 
-app.post(
-    "/api/transactions",
-    function (req, res) {
+app.post("/api/transactions", async function (req, res) {
+    try {
+        const amount = Number(req.body.amount);
 
-        try {
+        const transactionData = {
+            description: req.body.description,
+            amount,
+            type: req.body.type,
+            category: req.body.category,
+            date: req.body.date
+        };
 
-            const amount =
-                Number(req.body.amount);
-
-
-            const transactionData = {
-
-                description:
-                    req.body.description,
-
-                amount,
-
-                type:
-                    req.body.type,
-
-                category:
-                    req.body.category,
-
-                date:
-                    req.body.date
-
-            };
-
-
-            const validationError =
-                validateTransaction(
-                    transactionData
-                );
-
-
-            if (validationError) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        validationError
-
-                });
-
-            }
-
-
-            const data = readData();
-
-
-            const transaction = {
-
-                id: Date.now(),
-
-                description:
-                    transactionData.description.trim(),
-
-                amount:
-                    transactionData.amount,
-
-                type:
-                    transactionData.type,
-
-                category:
-                    transactionData.category.trim(),
-
-                date:
-                    transactionData.date
-
-            };
-
-
-            data.transactions.push(
-                transaction
-            );
-
-
-            const saved =
-                writeData(data);
-
-
-            if (!saved) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Failed to save transaction."
-
-                });
-
-            }
-
-
-            res.status(201).json({
-
-                success: true,
-
-                message:
-                    "Transaction added successfully.",
-
-                transaction
-
-            });
-
-        } catch (error) {
-
-            console.error(error);
-
-            res.status(500).json({
-
+        const validationError = validateTransaction(transactionData);
+        if (validationError) {
+            return res.status(400).json({
                 success: false,
-
-                message:
-                    "Server error while adding transaction."
-
+                message: validationError
             });
-
         }
 
-    }
-);
+        const newId = Date.now();
+        const createdTransaction = await Transaction.create({
+            id: newId,
+            description: transactionData.description.trim(),
+            amount: transactionData.amount,
+            type: transactionData.type,
+            category: transactionData.category.trim(),
+            date: transactionData.date
+        });
 
+        res.status(201).json({
+            success: true,
+            message: "Transaction added successfully.",
+            transaction: {
+                id: createdTransaction.id,
+                description: createdTransaction.description,
+                amount: createdTransaction.amount,
+                type: createdTransaction.type,
+                category: createdTransaction.category,
+                date: createdTransaction.date
+            }
+        });
+    } catch (error) {
+        console.error("Error adding transaction:", error);
+        res.status(500).json({
+            success: false,
+            message: "Server error while adding transaction."
+        });
+    }
+});
 
 // ==========================================
 // UPDATE TRANSACTION
 // ==========================================
 
-app.put(
-    "/api/transactions/:id",
-    function (req, res) {
+app.put("/api/transactions/:id", async function (req, res) {
+    try {
+        const targetId = Number(req.params.id);
+        const amount = Number(req.body.amount);
 
-        try {
+        const transactionData = {
+            description: req.body.description,
+            amount,
+            type: req.body.type,
+            category: req.body.category,
+            date: req.body.date
+        };
 
-            const id =
-                Number(req.params.id);
-
-
-            const amount =
-                Number(req.body.amount);
-
-
-            const transactionData = {
-
-                description:
-                    req.body.description,
-
-                amount,
-
-                type:
-                    req.body.type,
-
-                category:
-                    req.body.category,
-
-                date:
-                    req.body.date
-
-            };
-
-
-            const validationError =
-                validateTransaction(
-                    transactionData
-                );
-
-
-            if (validationError) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        validationError
-
-                });
-
-            }
-
-
-            const data = readData();
-
-
-            const index =
-                data.transactions.findIndex(
-                    transaction =>
-                        transaction.id === id
-                );
-
-
-            if (index === -1) {
-
-                return res.status(404).json({
-
-                    success: false,
-
-                    message:
-                        "Transaction not found."
-
-                });
-
-            }
-
-
-            data.transactions[index] = {
-
-                id,
-
-                description:
-                    transactionData.description.trim(),
-
-                amount:
-                    transactionData.amount,
-
-                type:
-                    transactionData.type,
-
-                category:
-                    transactionData.category.trim(),
-
-                date:
-                    transactionData.date
-
-            };
-
-
-            const saved =
-                writeData(data);
-
-
-            if (!saved) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Failed to update transaction."
-
-                });
-
-            }
-
-
-            res.status(200).json({
-
-                success: true,
-
-                message:
-                    "Transaction updated successfully.",
-
-                transaction:
-                    data.transactions[index]
-
-            });
-
-        } catch (error) {
-
-            console.error(error);
-
-            res.status(500).json({
-
+        const validationError = validateTransaction(transactionData);
+        if (validationError) {
+            return res.status(400).json({
                 success: false,
-
-                message:
-                    "Server error while updating transaction."
-
+                message: validationError
             });
-
         }
 
-    }
-);
+        const updatedTransaction = await Transaction.findOneAndUpdate(
+            { id: targetId },
+            {
+                description: transactionData.description.trim(),
+                amount: transactionData.amount,
+                type: transactionData.type,
+                category: transactionData.category.trim(),
+                date: transactionData.date
+            },
+            { new: true }
+        );
 
+        if (!updatedTransaction) {
+            return res.status(404).json({
+                success: false,
+                message: "Transaction not found."
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Transaction updated successfully.",
+            transaction: {
+                id: updatedTransaction.id,
+                description: updatedTransaction.description,
+                amount: updatedTransaction.amount,
+                type: updatedTransaction.type,
+                category: updatedTransaction.category,
+                date: updatedTransaction.date
+            }
+        });
+    } catch (error) {
+        console.error("Error updating transaction:", error);
+        res.status(500).json({
+            success: false,
+            message: "Server error while updating transaction."
+        });
+    }
+});
 
 // ==========================================
 // DELETE ALL TRANSACTIONS (CLEAR ALL)
 // ==========================================
 
-app.delete(
-    "/api/transactions",
-    function (req, res) {
+app.delete("/api/transactions", async function (req, res) {
+    try {
+        await Transaction.deleteMany({});
 
-        try {
-
-            const data = readData();
-
-            data.transactions = [];
-
-            const saved =
-                writeData(data);
-
-            if (!saved) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Failed to clear transactions."
-
-                });
-
-            }
-
-            res.status(200).json({
-
-                success: true,
-
-                message:
-                    "All transactions cleared successfully."
-
-            });
-
-        } catch (error) {
-
-            console.error(error);
-
-            res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Server error while clearing transactions."
-
-            });
-
-        }
-
+        res.status(200).json({
+            success: true,
+            message: "All transactions cleared successfully."
+        });
+    } catch (error) {
+        console.error("Error clearing transactions:", error);
+        res.status(500).json({
+            success: false,
+            message: "Server error while clearing transactions."
+        });
     }
-);
-
+});
 
 // ==========================================
-// DELETE TRANSACTION
+// DELETE SINGLE TRANSACTION
 // ==========================================
 
-app.delete(
-    "/api/transactions/:id",
-    function (req, res) {
+app.delete("/api/transactions/:id", async function (req, res) {
+    try {
+        const targetId = Number(req.params.id);
 
-        try {
+        const deleted = await Transaction.findOneAndDelete({ id: targetId });
 
-            const targetId =
-                String(req.params.id);
-
-
-            const data = readData();
-
-
-            const index =
-                data.transactions.findIndex(
-                    transaction =>
-                        String(transaction.id) === targetId
-                );
-
-
-            if (index === -1) {
-
-                return res.status(404).json({
-
-                    success: false,
-
-                    message:
-                        "Transaction not found."
-
-                });
-
-            }
-
-
-            data.transactions.splice(
-                index,
-                1
-            );
-
-
-            const saved =
-                writeData(data);
-
-
-            if (!saved) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Failed to delete transaction."
-
-                });
-
-            }
-
-
-            res.status(200).json({
-
-                success: true,
-
-                message:
-                    "Transaction deleted successfully."
-
-            });
-
-        } catch (error) {
-
-            console.error(error);
-
-            res.status(500).json({
-
+        if (!deleted) {
+            return res.status(404).json({
                 success: false,
-
-                message:
-                    "Server error while deleting transaction."
-
+                message: "Transaction not found."
             });
-
         }
 
+        res.status(200).json({
+            success: true,
+            message: "Transaction deleted successfully."
+        });
+    } catch (error) {
+        console.error("Error deleting transaction:", error);
+        res.status(500).json({
+            success: false,
+            message: "Server error while deleting transaction."
+        });
     }
-);
-
+});
 
 // ==========================================
 // GET BUDGET
 // ==========================================
 
-app.get(
-    "/api/budget",
-    function (req, res) {
+app.get("/api/budget", async function (req, res) {
+    try {
+        const budgetDoc = await Budget.findOne({ key: "current_budget" });
 
-        try {
-
-            const data = readData();
-
-
-            res.status(200).json({
-
-                success: true,
-
-                monthlyBudget:
-                    data.monthlyBudget
-
-            });
-
-        } catch (error) {
-
-            console.error(error);
-
-            res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Unable to retrieve budget."
-
-            });
-
-        }
-
+        res.status(200).json({
+            success: true,
+            monthlyBudget: budgetDoc ? budgetDoc.monthlyBudget : 0
+        });
+    } catch (error) {
+        console.error("Error retrieving budget:", error);
+        res.status(500).json({
+            success: false,
+            message: "Unable to retrieve budget."
+        });
     }
-);
-
+});
 
 // ==========================================
 // SAVE BUDGET
 // ==========================================
 
-app.post(
-    "/api/budget",
-    function (req, res) {
+app.post("/api/budget", async function (req, res) {
+    try {
+        const amount = Number(req.body.amount);
 
-        try {
-
-            const amount =
-                Number(req.body.amount);
-
-
-            if (
-                !Number.isFinite(amount) ||
-                amount <= 0
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "Budget amount must be greater than zero."
-
-                });
-
-            }
-
-
-            const data = readData();
-
-
-            data.monthlyBudget =
-                amount;
-
-
-            const saved =
-                writeData(data);
-
-
-            if (!saved) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Failed to save budget."
-
-                });
-
-            }
-
-
-            res.status(200).json({
-
-                success: true,
-
-                message:
-                    "Budget saved successfully.",
-
-                monthlyBudget:
-                    amount
-
-            });
-
-        } catch (error) {
-
-            console.error(error);
-
-            res.status(500).json({
-
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({
                 success: false,
-
-                message:
-                    "Server error while saving budget."
-
+                message: "Budget amount must be greater than zero."
             });
-
         }
 
-    }
-);
+        const budgetDoc = await Budget.findOneAndUpdate(
+            { key: "current_budget" },
+            { monthlyBudget: amount },
+            { upsert: true, new: true }
+        );
 
+        res.status(200).json({
+            success: true,
+            message: "Budget saved successfully.",
+            monthlyBudget: budgetDoc.monthlyBudget
+        });
+    } catch (error) {
+        console.error("Error saving budget:", error);
+        res.status(500).json({
+            success: false,
+            message: "Server error while saving budget."
+        });
+    }
+});
 
 // ==========================================
 // UNKNOWN API ROUTE
 // ==========================================
 
-app.use(
-    "/api",
-    function (req, res) {
+app.use("/api", function (req, res) {
+    res.status(404).json({
+        success: false,
+        message: "API endpoint not found."
+    });
+});
 
-        res.status(404).json({
+// ==========================================
+// CLIENT FALLBACK ROUTE
+// ==========================================
 
-            success: false,
-
-            message:
-                "API endpoint not found."
-
-        });
-
+app.get("*", function (req, res) {
+    if (fs.existsSync(path.join(clientDistPath, "index.html"))) {
+        res.sendFile(path.join(clientDistPath, "index.html"));
+    } else if (fs.existsSync(path.join(publicPath, "index.html"))) {
+        res.sendFile(path.join(publicPath, "index.html"));
+    } else {
+        res.status(404).send("Application build not found.");
     }
-);
-
+});
 
 // ==========================================
 // GLOBAL ERROR HANDLER
 // ==========================================
 
-app.use(
-    function (error, req, res, next) {
-
-        console.error(
-            "Unexpected error:",
-            error
-        );
-
-        res.status(500).json({
-
-            success: false,
-
-            message:
-                "Internal server error."
-
-        });
-
-    }
-);
-
+app.use(function (error, req, res, next) {
+    console.error("Unexpected error:", error);
+    res.status(500).json({
+        success: false,
+        message: "Internal server error."
+    });
+});
 
 // ==========================================
 // START SERVER
 // ==========================================
 
-app.listen(
-    PORT,
-    function () {
-
-        console.log("");
-        console.log(
-            "======================================"
-        );
-
-        console.log(
-            " BudgetFlow Server Started"
-        );
-
-        console.log(
-            "======================================"
-        );
-
-        console.log(
-            `Server: http://localhost:${PORT}`
-        );
-
-        console.log(
-            `Transactions: http://localhost:${PORT}/api/transactions`
-        );
-
-        console.log(
-            `Budget: http://localhost:${PORT}/api/budget`
-        );
-
-        console.log(
-            "======================================"
-        );
-
-    }
-);
+app.listen(PORT, function () {
+    console.log("");
+    console.log("======================================");
+    console.log(" BudgetFlow Backend Server Started");
+    console.log("======================================");
+    console.log(`Server:       http://localhost:${PORT}`);
+    console.log(`Transactions: http://localhost:${PORT}/api/transactions`);
+    console.log(`Budget:       http://localhost:${PORT}/api/budget`);
+    console.log(`Database:     ${MONGODB_URI}`);
+    console.log("======================================");
+});
