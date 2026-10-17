@@ -50,7 +50,6 @@ const TransactionSchema = new mongoose.Schema(
 );
 
 // Index on id and date for fast lookups and sorting
-TransactionSchema.index({ id: 1 });
 TransactionSchema.index({ date: -1 });
 
 module.exports = mongoose.model("Transaction", TransactionSchema);
