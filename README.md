@@ -17,6 +17,16 @@ A modern, high-performance personal finance and budget tracker converted to **Re
 
 ```
 Personal Budget & Expense Tracker/
+├── server/                     # Backend Express & MongoDB API
+│   ├── models/
+│   │   ├── Transaction.js      # Mongoose Transaction Schema
+│   │   └── Budget.js           # Mongoose Monthly Budget Schema
+│   ├── data/
+│   │   └── budget-data.json    # Seed / backup data (auto-migrated)
+│   ├── server.js               # Express API server with MongoDB
+│   ├── .env                    # Server environment configuration
+│   ├── .env.example            # Environment template
+│   └── package.json            # Server dependencies
 ├── client/                     # React Frontend (Vite)
 │   ├── src/
 │   │   ├── components/
@@ -37,15 +47,7 @@ Personal Budget & Expense Tracker/
 │   ├── index.html                      # HTML entry
 │   ├── vite.config.js                  # Vite server & /api proxy to backend
 │   └── package.json                    # Client dependencies
-├── models/
-│   ├── Transaction.js                  # Mongoose Transaction Schema
-│   └── Budget.js                       # Mongoose Monthly Budget Schema
-├── data/
-│   └── budget-data.json                # Seed / backup data (auto-migrated)
-├── server.js                           # Express API server with MongoDB
-├── .env                                # Environment configuration
-├── .env.example                        # Template for environment variables
-├── package.json                        # Root dependencies and scripts
+├── package.json                # Root orchestration scripts
 └── README.md
 ```
 
