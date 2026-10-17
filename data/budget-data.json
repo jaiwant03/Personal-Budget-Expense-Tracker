@@ -1,4 +1,53 @@
 {
-  "transactions": [],
-  "monthlyBudget": 10000
+  "transactions": [
+    {
+      "id": 1788933638827,
+      "description": "Monthly Salary",
+      "amount": 50000,
+      "type": "income",
+      "category": "Salary",
+      "date": "2026-09-09"
+    },
+    {
+      "id": 1788933665939,
+      "description": "Grocery Shopping",
+      "amount": 5000,
+      "type": "expense",
+      "category": "Shopping",
+      "date": "2026-09-09"
+    },
+    {
+      "id": 1788934011258,
+      "description": "Grocery Shopping",
+      "amount": 5000,
+      "type": "expense",
+      "category": "Shopping",
+      "date": "2026-08-09"
+    },
+    {
+      "id": 1788934044190,
+      "description": "Monthly Salary",
+      "amount": 40000,
+      "type": "income",
+      "category": "Salary",
+      "date": "2026-08-09"
+    },
+    {
+      "id": 1789055176641,
+      "description": "Haircut",
+      "amount": 500,
+      "type": "expense",
+      "category": "Other",
+      "date": "2026-09-10"
+    },
+    {
+      "id": 1789055590313,
+      "description": "Petrol",
+      "amount": 1000,
+      "type": "expense",
+      "category": "Bills",
+      "date": "2026-09-10"
+    }
+  ],
+  "monthlyBudget": 15000
 }
