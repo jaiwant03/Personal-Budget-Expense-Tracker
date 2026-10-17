@@ -393,8 +393,6 @@ app.use("/api", function (req, res) {
 app.use(function (req, res) {
     if (fs.existsSync(path.join(clientDistPath, "index.html"))) {
         res.sendFile(path.join(clientDistPath, "index.html"));
-    } else if (fs.existsSync(path.join(publicPath, "index.html"))) {
-        res.sendFile(path.join(publicPath, "index.html"));
     } else {
         res.status(404).send("Application build not found.");
     }
